@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Focus Flow</title>
+<style>
+  :root {
+    --bg: #f5f4f0;
+    --card: #ffffff;
+    --ink: #1f1e1c;
+    --muted: #8a8681;
+    --accent: #e8663f;
+    --accent-soft: #fbe4db;
+    --ring-track: #ece9e3;
+    --break: #4f8a6f;
+    --break-soft: #dcede3;
+    --shadow: 0 20px 40px -20px rgba(31,30,28,0.25);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    color: var(--ink);
+    padding: 24px;
+  }
+
+  .card {
+    background: var(--card);
+    border-radius: 28px;
+    box-shadow: var(--shadow);
+    padding: 40px 36px 32px;
+    width: 100%;
+    max-width: 380px;
+    text-align: center;
+    transition: box-shadow .3s ease;
+  }
+
+  .mode-switch {
+    display: inline-flex;
+    background: var(--ring-track);
+    border-radius: 999px;
+    padding: 4px;
+    margin-bottom: 28px;
+    gap: 4px;
+  }
+
+  .mode-switch button {
+    border: none;
+    background: transparent;
+    padding: 8px 18px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all .2s ease;
+  }
+
+  .mode-switch button.active {
+    background: var(--card);
+    color: var(--ink);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+
+  .ring-wrap {
+    position: relative;
+    width: 240px;
+    height: 240px;
+    margin: 0 auto 28px;
+  }
+
+  svg { transform: rotate(-90deg); }
+
+  .ring-track { stroke: var(--ring-track); }
+  .ring-progress {
+    stroke: var(--accent);
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1s linear, stroke .3s ease;
+  }
+  body.break-mode .ring-progress { stroke: var(--break); }
+
+  .ring-label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .time {
+    font-size: 48px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -1px;
+  }
+
+  .session-tag {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  input[type="text"] {
+    width: 100%;
+    border: 1px solid var(--ring-track);
+    background: var(--bg);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 14px;
+    color: var(--ink);
+    margin-bottom: 20px;
+    outline: none;
+    transition: border-color .2s ease;
+  }
+
+  input[type="text"]:focus { border-color: var(--accent); }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 28px;
+  }
+
+  .btn {
+    border: none;
+    border-radius: 14px;
+    padding: 13px 22px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform .15s ease, filter .2s ease;
+  }
+  .btn:active { transform: scale(0.96); }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    flex: 1;
+  }
+  body.break-mode .btn-primary { background: var(--break); }
+  .btn-primary:hover { filter: brightness(1.06); }
+
+  .btn-ghost {
+    background: var(--ring-track);
+    color: var(--ink);
+  }
+  .btn-ghost:hover { filter: brightness(0.96); }
+
+  .stats {
+    display: flex;
+    justify-content: space-between;
+    border-top: 1px solid var(--ring-track);
+    padding-top: 20px;
+  }
+
+  .stat { text-align: center; flex: 1; }
+  .stat-value { font-size: 22px; font-weight: 700; }
+  .stat-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 2px;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--ink);
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    opacity: 0;
+    pointer-events: none;
+    transition: all .3s ease;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="mode-switch">
+    <button id="modeFocus" class="active">Focus</button>
+    <button id="modeBreak">Break</button>
+  </div>
+
+  <div class="ring-wrap">
+    <svg width="240" height="240" viewBox="0 0 240 240">
+      <circle class="ring-track" cx="120" cy="120" r="108" stroke-width="14" fill="none"/>
+      <circle id="ringProgress" class="ring-progress" cx="120" cy="120" r="108" stroke-width="14" fill="none"
+        stroke-dasharray="678.6" stroke-dashoffset="0"/>
+    </svg>
+    <div class="ring-label">
+      <div class="time" id="timeDisplay">25:00</div>
+      <div class="session-tag" id="sessionTag">Ready</div>
+    </div>
+  </div>
+
+  <input type="text" id="taskInput" placeholder="What are you focusing on?" maxlength="80">
+
+  <div class="controls">
+    <button class="btn btn-ghost" id="resetBtn">Reset</button>
+    <button class="btn btn-primary" id="startBtn">Start</button>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value" id="statToday">0</div>
+      <div class="stat-label">Today</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" id="statStreak">0</div>
+      <div class="stat-label">Day streak</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" id="statTotal">0</div>
+      <div class="stat-label">All-time</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  const DURATIONS = { focus: 25 * 60, break: 5 * 60 };
+  const RADIUS = 108;
+  const CIRC = 2 * Math.PI * RADIUS;
+
+  const state = {
+    mode: 'focus',
+    secondsLeft: DURATIONS.focus,
+    running: false,
+    timerId: null,
+  };
+
+  const els = {
+    time: document.getElementById('timeDisplay'),
+    tag: document.getElementById('sessionTag'),
+    ring: document.getElementById('ringProgress'),
+    start: document.getElementById('startBtn'),
+    reset: document.getElementById('resetBtn'),
+    task: document.getElementById('taskInput'),
+    modeFocus: document.getElementById('modeFocus'),
+    modeBreak: document.getElementById('modeBreak'),
+    statToday: document.getElementById('statToday'),
+    statStreak: document.getElementById('statStreak'),
+    statTotal: document.getElementById('statTotal'),
+    toast: document.getElementById('toast'),
+    body: document.body,
+  };
+
+  els.ring.setAttribute('stroke-dasharray', CIRC.toFixed(1));
+
+  function todayKey() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function loadData() {
+    try {
+      return JSON.parse(localStorage.getItem('focusFlowData')) || { days: {}, total: 0 };
+    } catch (e) {
+      return { days: {}, total: 0 };
+    }
+  }
+
+  function saveData(data) {
+    localStorage.setItem('focusFlowData', JSON.stringify(data));
+  }
+
+  function computeStreak(days) {
+    let streak = 0;
+    let cursor = new Date();
+    while (true) {
+      const key = cursor.toISOString().slice(0, 10);
+      if (days[key] && days[key] > 0) {
+        streak++;
+        cursor.setDate(cursor.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+    return streak;
+  }
+
+  function refreshStats() {
+    const data = loadData();
+    const today = data.days[todayKey()] || 0;
+    els.statToday.textContent = today;
+    els.statStreak.textContent = computeStreak(data.days);
+    els.statTotal.textContent = data.total || 0;
+  }
+
+  function recordCompletedFocus() {
+    const data = loadData();
+    const key = todayKey();
+    data.days[key] = (data.days[key] || 0) + 1;
+    data.total = (data.total || 0) + 1;
+    saveData(data);
+    refreshStats();
+  }
+
+  function formatTime(s) {
+    const m = Math.floor(s / 60).toString().padStart(2, '0');
+    const sec = Math.floor(s % 60).toString().padStart(2, '0');
+    return `${m}:${sec}`;
+  }
+
+  function updateDisplay() {
+    els.time.textContent = formatTime(state.secondsLeft);
+    const total = DURATIONS[state.mode];
+    const fraction = state.secondsLeft / total;
+    els.ring.setAttribute('stroke-dashoffset', (CIRC * (1 - fraction)).toFixed(1));
+    document.title = `${formatTime(state.secondsLeft)} · Focus Flow`;
+  }
+
+  function setMode(mode) {
+    if (state.running) return;
+    state.mode = mode;
+    state.secondsLeft = DURATIONS[mode];
+    els.modeFocus.classList.toggle('active', mode === 'focus');
+    els.modeBreak.classList.toggle('active', mode === 'break');
+    els.body.classList.toggle('break-mode', mode === 'break');
+    els.tag.textContent = 'Ready';
+    updateDisplay();
+  }
+
+  function playChime() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const notes = [523.25, 659.25, 783.99];
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        const startAt = ctx.currentTime + i * 0.15;
+        gain.gain.setValueAtTime(0, startAt);
+        gain.gain.linearRampToValueAtTime(0.2, startAt + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, startAt + 0.6);
+        osc.start(startAt);
+        osc.stop(startAt + 0.6);
+      });
+    } catch (e) { /* audio unavailable */ }
+  }
+
+  function showToast(msg) {
+    els.toast.textContent = msg;
+    els.toast.classList.add('show');
+    setTimeout(() => els.toast.classList.remove('show'), 2800);
+  }
+
+  function tick() {
+    state.secondsLeft--;
+    if (state.secondsLeft <= 0) {
+      completeSession();
+      return;
+    }
+    updateDisplay();
+  }
+
+  function completeSession() {
+    clearInterval(state.timerId);
+    state.running = false;
+    state.secondsLeft = 0;
+    updateDisplay();
+    playChime();
+    els.start.textContent = 'Start';
+    els.tag.textContent = 'Done';
+
+    if (state.mode === 'focus') {
+      recordCompletedFocus();
+      const label = els.task.value.trim();
+      showToast(label ? `Nice work on "${label}" 🎉` : 'Focus session complete 🎉');
+      setMode('break');
+    } else {
+      showToast('Break over — ready for another round?');
+      setMode('focus');
+    }
+  }
+
+  function start() {
+    if (state.running) return;
+    if (state.secondsLeft <= 0) state.secondsLeft = DURATIONS[state.mode];
+    state.running = true;
+    els.start.textContent = 'Pause';
+    els.tag.textContent = state.mode === 'focus' ? 'Focusing' : 'On break';
+    state.timerId = setInterval(tick, 1000);
+  }
+
+  function pause() {
+    state.running = false;
+    clearInterval(state.timerId);
+    els.start.textContent = 'Start';
+    els.tag.textContent = 'Paused';
+  }
+
+  function reset() {
+    pause();
+    state.secondsLeft = DURATIONS[state.mode];
+    els.tag.textContent = 'Ready';
+    updateDisplay();
+  }
+
+  els.start.addEventListener('click', () => {
+    state.running ? pause() : start();
+  });
+  els.reset.addEventListener('click', reset);
+  els.modeFocus.addEventListener('click', () => setMode('focus'));
+  els.modeBreak.addEventListener('click', () => setMode('break'));
+
+  updateDisplay();
+  refreshStats();
+})();
+</script>
+
+</body>
+</html>
